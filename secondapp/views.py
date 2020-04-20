@@ -13,19 +13,23 @@ import json
 
 class matches(APIView):
 
+    def post(self, request):
+        serializer = MatchSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
     def get(self, request):
         matches = Match.objects.all().order_by('created_at')
         host = request.get_host()
-        response = requests.get(url=f'http://{host}/api/human/')
-        humans = json.loads(response.text)
-        for match in matches:
-            try:
-                human = next(human for human in humans if human["id"] == match.human_id)
-            except:
-                human = None
-            match.human = human
         paginator = LimitOffsetPagination()
         result_page = paginator.paginate_queryset(matches, request)
+        for match in result_page:
+            response = requests.get(url=f'http://{host}/api/human/{match.human_id}')
+            human = json.loads(response.text)
+            match.human = human
         serializer = MatchSerializer(result_page, many=True, context={'request':request})
         response = Response(serializer.data, status=status.HTTP_200_OK)
         return response
